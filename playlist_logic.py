@@ -28,6 +28,8 @@ def normalize_artist(artist: str) -> str:
 
 def normalize_genre(genre: str) -> str:
     """Normalize a genre name for comparisons."""
+    if not isinstance(genre, str):
+        return ""
     return genre.lower().strip()
 
 
@@ -37,12 +39,15 @@ def normalize_song(raw: Song) -> Song:
     artist = normalize_artist(str(raw.get("artist", "")))
     genre = normalize_genre(str(raw.get("genre", "")))
     energy = raw.get("energy", 0)
-
     if isinstance(energy, str):
         try:
             energy = int(energy)
         except ValueError:
             energy = 0
+    elif isinstance(energy, (int, float)):
+        energy = int(energy)
+    else:
+        energy = 0
 
     tags = raw.get("tags", [])
     if isinstance(tags, str):
@@ -71,12 +76,19 @@ def classify_song(song: Song, profile: Dict[str, object]) -> str:
     chill_keywords = ["lofi", "ambient", "sleep"]
 
     is_hype_keyword = any(k in genre for k in hype_keywords)
-    is_chill_keyword = any(k in title for k in chill_keywords)
+    is_chill_keyword = any(k in genre for k in chill_keywords)
 
-    if genre == favorite_genre or energy >= hype_min_energy or is_hype_keyword:
+    # Energy thresholds are authoritative: only classify as Hype when
+    # the energy meets the user's `hype_min_energy` setting.
+    if energy >= hype_min_energy:
         return "Hype"
-    if energy <= chill_max_energy or is_chill_keyword:
+    if energy <= chill_max_energy:
         return "Chill"
+
+    # Use chill keywords as a secondary signal for Chill only.
+    if is_chill_keyword:
+        return "Chill"
+
     return "Mixed"
 
 
@@ -108,21 +120,19 @@ def merge_playlists(a: PlaylistMap, b: PlaylistMap) -> PlaylistMap:
 
 def compute_playlist_stats(playlists: PlaylistMap) -> Dict[str, object]:
     """Compute statistics across all playlists."""
-    all_songs: List[Song] = []
-    for songs in playlists.values():
-        all_songs.extend(songs)
+    all_songs: List[Song] = [s for songs in playlists.values() for s in songs]
 
     hype = playlists.get("Hype", [])
     chill = playlists.get("Chill", [])
     mixed = playlists.get("Mixed", [])
 
-    total = len(hype)
-    hype_ratio = len(hype) / total if total > 0 else 0.0
+    total_songs = len(all_songs)
+    hype_ratio = len(hype) / total_songs if total_songs > 0 else 0.0
 
     avg_energy = 0.0
-    if all_songs:
-        total_energy = sum(song.get("energy", 0) for song in hype)
-        avg_energy = total_energy / len(all_songs)
+    if total_songs > 0:
+        total_energy = sum(int(song.get("energy", 0)) for song in all_songs)
+        avg_energy = total_energy / total_songs
 
     top_artist, top_count = most_common_artist(all_songs)
 
@@ -146,7 +156,6 @@ def most_common_artist(songs: List[Song]) -> Tuple[str, int]:
         if not artist:
             continue
         counts[artist] = counts.get(artist, 0) + 1
-
     if not counts:
         return "", 0
 
@@ -168,7 +177,7 @@ def search_songs(
 
     for song in songs:
         value = str(song.get(field, "")).lower()
-        if value and value in q:
+        if q and value and q in value:
             filtered.append(song)
 
     return filtered
@@ -184,7 +193,11 @@ def lucky_pick(
     elif mode == "chill":
         songs = playlists.get("Chill", [])
     else:
-        songs = playlists.get("Hype", []) + playlists.get("Chill", [])
+        songs = (
+            playlists.get("Hype", [])
+            + playlists.get("Chill", [])
+            + playlists.get("Mixed", [])
+        )
 
     return random_choice_or_none(songs)
 
@@ -192,7 +205,8 @@ def lucky_pick(
 def random_choice_or_none(songs: List[Song]) -> Optional[Song]:
     """Return a random song or None."""
     import random
-
+    if not songs:
+        return None
     return random.choice(songs)
 
 
