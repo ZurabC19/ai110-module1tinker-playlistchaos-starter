@@ -35,6 +35,22 @@ You will need to look at both files to understand how the app behaves.
 
 ---
 
+## Improvements and fixes applied
+
+During debugging, several inconsistencies between intended and actual behavior were identified and corrected:
+
+- **Search behavior:** fixed partial matching so queries correctly match substrings (e.g., `"ac"` → `"ac/dc"`).
+- **Playlist statistics:**  
+  - Corrected hype ratio to use total songs across all playlists.  
+  - Recomputed average energy using all songs instead of only Hype songs.
+- **Lucky Pick:** included Mixed songs in “any” mode and prevented crashes when playlists are empty.
+- **Song normalization:** improved handling of genre and energy inputs (whitespace trimming, type safety).
+- **Classification logic:** updated to prioritize energy thresholds so songs are not forced into Hype based solely on genre/keywords when energy does not meet the user’s hype setting.
+
+These fixes make playlist grouping, search, and statistics align with the intended behavior described in the activity.
+
+---
+
 ## What you will do
 
 ### 1. Explore the app  
